@@ -9,3 +9,5 @@ __pycache__/
 *.key
 node_modules/
 dist/
+build/
+*.egg-info/

@@ -1,0 +1,25 @@
+[project]
+name = "trade-lane-sentinel"
+version = "0.1.0"
+description = "Trade-Lane Sentinel: cross-border compliance & document discrepancy reconciliation kernel"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.7,<3",
+    "cryptography>=42",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.1"]
+dev = ["pytest>=8", "psycopg[binary]>=3.1"]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"

@@ -150,3 +150,52 @@ def bill_of_lading():
         ],
         cargo_description=f("400 bags roasted coffee"),
     )
+
+
+# --------------------------------------------------------------------------- #
+# Platform fixtures (tenancy, encryption, audit)
+# --------------------------------------------------------------------------- #
+
+from sentinel.crypto.envelope import LocalKms  # noqa: E402
+from sentinel.ledger.audit import AuditLog  # noqa: E402
+from sentinel.storage.blobs import EncryptedBlobStore, InMemoryBlobStore  # noqa: E402
+from sentinel.tenancy import Counterparty, TenantConfig, TenantDirectory  # noqa: E402
+
+SUPPLIER = Counterparty("Tech Solutions Ltd", "supplier", "docs@techsol.example", frozenset({"techsol.example"}))
+CARRIER = Counterparty("Oceanic Lines", "shipping_line", "bl-desk@oceanic.example", frozenset({"oceanic.example"}))
+
+
+@pytest.fixture
+def tenants():
+    return TenantDirectory([
+        TenantConfig(
+            tenant_id=TENANT, kms_key_ref="kms://acme", data_region="ca-central-1",
+            counterparties=(SUPPLIER, CARRIER),
+            webhook_secrets={"port-montreal": b"s3cret-shared-key-0123456789abcdef"},
+            inbound_email_domains=frozenset({"techsol.example", "oceanic.example"}),
+        ),
+        TenantConfig(tenant_id="globex_freight", kms_key_ref="kms://globex", data_region="eu-west-1"),
+    ])
+
+
+@pytest.fixture
+def kms():
+    k = LocalKms()
+    k.create_key("kms://acme")
+    k.create_key("kms://globex")
+    return k
+
+
+@pytest.fixture
+def raw_blobs():
+    return InMemoryBlobStore()
+
+
+@pytest.fixture
+def blobs(raw_blobs, kms, tenants):
+    return EncryptedBlobStore(raw_blobs, kms, tenants)
+
+
+@pytest.fixture
+def audit(ledger):
+    return AuditLog(ledger)

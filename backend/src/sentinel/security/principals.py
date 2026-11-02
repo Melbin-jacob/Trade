@@ -69,6 +69,7 @@ class Role(StrEnum):
     COMPLIANCE_OFFICER = "compliance_officer"
     CUSTOMS_FILER = "customs_filer"
     AUDITOR = "auditor"
+    DISPATCHER = "dispatcher"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
@@ -94,6 +95,8 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
         {Permission.SHIPMENT_READ, Permission.FILING_SUBMIT, Permission.SHIPMENT_CLOSE}
     ),
     Role.AUDITOR: frozenset({Permission.SHIPMENT_READ}),
+    # Executes already-approved actions; cannot change shipment state or approve.
+    Role.DISPATCHER: frozenset({Permission.SHIPMENT_READ}),
 }
 
 

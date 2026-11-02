@@ -121,6 +121,7 @@ class DocumentVersion:
     supersedes_sha256: str | None
     source_channel: str
     ledger_sequence: int
+    storage_uri: str = ""
 
 
 @dataclass
@@ -171,6 +172,7 @@ class ShipmentAggregate:
                 out[issue_id] = {
                     "id": issue_id,
                     "kind": "low_confidence",
+                    "rule_id": "CONFIDENCE_THRESHOLD",
                     "severity": "warning",
                     "message": f"{doc_type.value} field {path} below confidence threshold",
                 }
@@ -231,6 +233,7 @@ class ShipmentAggregate:
                     supersedes_sha256=p.get("supersedes_sha256"),
                     source_channel=p["source_channel"],
                     ledger_sequence=e.sequence,
+                    storage_uri=p.get("storage_uri", ""),
                 )
             )
             if p.get("supersedes_sha256"):

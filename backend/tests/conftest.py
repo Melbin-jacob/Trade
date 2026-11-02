@@ -1,4 +1,7 @@
 from __future__ import annotations
+import os
+
+os.environ.setdefault("SENTINEL_AUTOLOAD", "0")  # never build the production app on import in tests
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal

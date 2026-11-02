@@ -122,6 +122,7 @@ def rule(fn: Rule) -> Rule:
 
 @rule
 def required_documents(ctx: Context) -> list[TraceNode]:
+    """Required documents present"""
     return [
         ctx.check("DOC_REQUIRED", f"{dt.value} present", dt in ctx.docs, location=dt.value,
                   kind="missing_document", message=f"Required document missing: {dt.value.replace('_', ' ')}")
@@ -142,6 +143,7 @@ def _walk(obj: Any, path: str = ""):
 
 @rule
 def field_formats(ctx: Context) -> list[TraceNode]:
+    """Field formats valid"""
     nodes = []
     for dt, ref in ctx.docs.items():
         for path, f in _walk(ref.doc):
@@ -165,6 +167,7 @@ def field_formats(ctx: Context) -> list[TraceNode]:
 
 @rule
 def invoice_arithmetic(ctx: Context) -> list[TraceNode]:
+    """Invoice arithmetic"""
     inv: CommercialInvoice | None = ctx.doc(DT.COMMERCIAL_INVOICE)
     if inv is None:
         return []
@@ -212,6 +215,7 @@ def invoice_arithmetic(ctx: Context) -> list[TraceNode]:
 
 @rule
 def packing_list_totals(ctx: Context) -> list[TraceNode]:
+    """Packing list totals"""
     pl: PackingList | None = ctx.doc(DT.PACKING_LIST)
     if pl is None:
         return []
@@ -263,6 +267,7 @@ def _transposition(a: str, b: str) -> bool:
 
 @rule
 def bl_vs_packing_list(ctx: Context) -> list[TraceNode]:
+    """Bill of lading vs packing list"""
     bl: BillOfLading | None = ctx.doc(DT.BILL_OF_LADING)
     pl: PackingList | None = ctx.doc(DT.PACKING_LIST)
     if bl is None or pl is None:
@@ -323,6 +328,7 @@ def bl_vs_packing_list(ctx: Context) -> list[TraceNode]:
 
 @rule
 def invoice_vs_packing_list(ctx: Context) -> list[TraceNode]:
+    """Invoice vs packing list (line matching)"""
     inv: CommercialInvoice | None = ctx.doc(DT.COMMERCIAL_INVOICE)
     pl: PackingList | None = ctx.doc(DT.PACKING_LIST)
     if inv is None or pl is None:
@@ -372,6 +378,7 @@ def invoice_vs_packing_list(ctx: Context) -> list[TraceNode]:
 
 @rule
 def origin_consistency(ctx: Context) -> list[TraceNode]:
+    """Origin consistency"""
     inv: CommercialInvoice | None = ctx.doc(DT.COMMERCIAL_INVOICE)
     coo: CertificateOfOrigin | None = ctx.doc(DT.CERTIFICATE_OF_ORIGIN)
     if inv is None or coo is None:
@@ -405,6 +412,7 @@ def origin_consistency(ctx: Context) -> list[TraceNode]:
 
 @rule
 def parties(ctx: Context) -> list[TraceNode]:
+    """Parties consistent across documents"""
     inv: CommercialInvoice | None = ctx.doc(DT.COMMERCIAL_INVOICE)
     bl: BillOfLading | None = ctx.doc(DT.BILL_OF_LADING)
     if inv is None or bl is None:
@@ -443,8 +451,9 @@ class RuleEngine:
             if children:
                 outcome = "fail" if any(_failed(c) for c in children) else (
                     "pass" if any(_passed(c) for c in children) else "skip")
+                label = (r.__doc__ or r.__name__.replace("_", " ")).strip().splitlines()[0]
                 trace.append(TraceNode(children[0].rule_id if len(children) == 1 else r.__name__,
-                                       r.__doc__ or r.__name__.replace("_", " "), outcome, children=children))
+                                       label, outcome, children=children))
         return ValidationReport(RULESET_VERSION, list(ctx.issues.values()), trace)
 
 

@@ -66,3 +66,35 @@ may fire from and the permission it requires.
 - **Approval is tied to content.** The approver submits the hash of the draft
   they reviewed. If it does not match the proposed draft, the approval is
   rejected.
+
+## Pipeline (modules 2-8)
+
+| Stage | Module | Deterministic or LLM | Writes |
+|---|---|---|---|
+| Intake | `ingestion/` | deterministic | `intake.*`, `document.version_registered` |
+| Extraction | `extraction/` | OCR + Claude (schema-bound), deterministic scoring | `llm_call.completed`, `extraction.completed` |
+| Validation | `rules/` + `regulatory/rulepacks.py` | deterministic; Claude only labels ambiguous description pairs | `validation.completed`, `external_call.completed` |
+| Screening | `regulatory/screening.py` | deterministic (Jaro-Winkler + embargo list) | `screening.completed` |
+| Remediation | `agents/remediation.py` | Claude drafts the email; recipients and guardrails are deterministic | `remediation.proposed` |
+| Human review | `api/` + `frontend/` | human | `remediation.approved/rejected`, `exception.issues_waived`, `hold.released`, `filing.submitted` |
+| Dispatch | `dispatch/outbox.py` | deterministic | `dispatch.claimed/sent/blocked/failed` |
+
+The orchestrator (`orchestration/orchestrator.py`) tails each tenant's ledger and
+wakes the worker for the shipment's current state. Each worker re-checks its
+preconditions through the kernel, so running a step twice or out of order is
+rejected rather than applied.
+
+## Confidence scoring (98% threshold)
+
+```
+score = min(OCR confidence of the tokens the evidence quote spans)
+        capped at 40 if the quote is not in the OCR text (possible hallucination)
+        capped at 70 if the value is not visible inside the quote
+        capped at 60 if an independent extractor disagrees (e.g. container regex)
+        value = null, score 0 if the value fails its validator (ISO 6346, HS, ISO 4217...)
+then    calibrated through a piecewise-linear curve fitted on labelled samples
+```
+
+Born-digital PDFs read from the text layer score 99.9 when grounded. Scanned
+pages use Tesseract word confidences. Anything below 98 becomes a
+`low_confidence:*` issue that a human must confirm.

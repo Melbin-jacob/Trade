@@ -46,6 +46,7 @@ def _hs_codes(ctx: Context) -> list[tuple[int, str]]:
 
 def import_rules_pack(rules: tuple[ImportRule, ...] = DEFAULT_IMPORT_RULES) -> Rule:
     def import_requirements(ctx: Context) -> list[TraceNode]:
+        """Destination import requirements"""
         dest = destination_country(ctx)
         if dest is None:
             return [TraceNode("IMPORT_RULES", "destination import requirements", "skip", detail="destination unknown")]
@@ -76,6 +77,7 @@ def import_rules_pack(rules: tuple[ImportRule, ...] = DEFAULT_IMPORT_RULES) -> R
 
 def tariff_pack(provider: TariffProvider, audit: AuditLog, tenant_id: str, actor: dict[str, str]) -> Rule:
     def tariff_classification(ctx: Context) -> list[TraceNode]:
+        """Tariff classification (HS codes)"""
         dest = destination_country(ctx)
         if dest is None:
             return []

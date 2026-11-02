@@ -1,67 +1,89 @@
 # Trade-Lane Sentinel
 
 An autonomous agent platform for cross-border compliance checks and document
-discrepancy reconciliation in global supply chains. It checks Commercial
-Invoices, Bills of Lading, Packing Lists and certificates against each other,
-screens shipments against tariff and sanctions rules, drafts corrections, and
-sends every external action through a human approval gate with an audit trail.
+discrepancy reconciliation in global supply chains. It reads Commercial
+Invoices, Bills of Lading, Packing Lists and certificates, checks them against
+each other and against tariff, sanctions and import rules, drafts correction
+requests to suppliers and shipping lines, and sends every external action
+through a human approval gate with a signed audit trail.
 
-> **Status:** Module 1 (the core kernel) is in place. See the [roadmap](#roadmap).
+## Try the demo
 
-## Design principles
+```bash
+docker compose --profile demo up --build
+```
 
-- **Thin agent, thick kernel.** LLMs read, match meaning and draft text. Python
-  and SQL code does every calculation, state change and permission check.
-- **The ledger is the system of record.** Shipment state is rebuilt by replaying
-  a hash-chained, signed, append-only event ledger, so the audit trail always
-  matches what operators saw.
-- **Fail closed.** A shipment is ready for filing only when the *current*
-  document set has been extracted, validated, cleared by screening, and has no
-  open issues.
+Without Docker:
+
+```bash
+cd frontend && npm ci && npm run build && cd ../backend
+pip install -e ".[dev]"
+SENTINEL_ENV=dev uvicorn sentinel.api.main:app --port 8000
+```
+
+Open http://localhost:8000 and pick a persona. The demo starts with five
+shipments, one per review path:
+
+| Shipment | Scenario | Who acts |
+|---|---|---|
+| SHP-2026-000123 | Packing-list gross weight typo (4,960 entered as 4,690): B/L mismatch, and net weight above gross. The agent has drafted a correction email. Demurrage is accruing. | Alex Lee approves the draft, then uploads the corrected packing list (`/api/v1/dev/sample/corrected-packing-list`). |
+| SHP-2026-000124 | Clean shipment, ready for filing. | Sam Patel files the declaration. |
+| SHP-2026-000125 | Mangoes into Canada without a phytosanitary certificate (import rule). | Reviewer approves the request for the missing document. |
+| SHP-2026-000126 | Consignee matches a (fictitious) sanctions entry, so the shipment is on hold. | Emma Davis requests release; Jane Doe co-signs. |
+| SHP-2026-000127 | An extracted invoice total isn't backed by the page text, so its confidence is capped and it is flagged. | A reviewer confirms the value. |
+
+The demo uses a scripted stand-in for Claude, so it needs no API key. To use
+real Claude extraction and drafting, set `SENTINEL_DEMO_USE_CLAUDE=1` and
+provide Anthropic credentials.
+
+## Architecture
+
+```
+ Email / S3 / Port APIs ─► Ingestion gateway ─► Extraction ─► Rule engine + Screening ─► Remediation agent
+   (DMARC, HMAC, prefix)    (sniff, AV scan,     (OCR + Claude,   (Decimal checks, OFAC,     (proposes only)
+                             classify, encrypt)   grounded scores)  tariff, import rules)          │
+                                     │                                                         ▼
+                      Signed hash-chained ledger ◄── every event ──  HITL dashboard ─► Approval gate ─► Dispatcher
+                      (system of record)                             (diff, decision tree,   (4-eyes,      (allowlist, DLP,
+                                                                      single-click approve)   content hash)  idempotent)
+```
+
+**Thin agent, thick kernel.** Claude extracts values into a strict schema,
+matches goods descriptions that are worded differently, and drafts emails.
+Deterministic Python does every calculation, every confidence score, every
+state change and every permission check. Agents can only read and propose.
+
+See [docs/architecture.md](docs/architecture.md),
+[docs/security.md](docs/security.md) and
+[docs/deployment.md](docs/deployment.md).
 
 ## Repository layout
 
 ```
-backend/
-  src/sentinel/
-    core/canonical.py        deterministic JSON used for hashing and signing (rejects floats)
-    domain/identifiers.py    ISO 6346 container check digits, HS codes, ISO 4217/3166 codes
-    domain/fields.py         ExtractedField[T] with confidence score, source location and the 98% threshold
-    domain/documents.py      Invoice / B/L / Packing List / CoO / Phytosanitary schemas
-    security/principals.py   roles, permissions, agent read-only boundary
-    ledger/chain.py          hash-chained, Ed25519-signed ledger and verify_chain()
-    ledger/postgres.py       Postgres adapter (tenant role + RLS for each transaction)
-    kernel/shipment.py       Master Shipment aggregate + state machine (event-sourced)
-    kernel/service.py        commands: authorize -> guard -> append -> evolve
-  tests/                     unit tests + Postgres integration tests
-db/migrations/               tenant provisioning, append-only ledger enforced in SQL
-docs/                        architecture and security model
-frontend/                    HITL review dashboard (coming next)
+backend/src/sentinel/
+  core/          canonical JSON for hashing (floats rejected)
+  domain/        document schemas, ExtractedField[T], ISO 6346 / HS validation
+  security/      principals, roles, agent permission boundary
+  ledger/        hash-chained Ed25519-signed ledger, Postgres adapter, audit helper
+  kernel/        Master Shipment state machine (event-sourced) + command service
+  crypto/        AES-256-GCM envelope encryption (KMS port)
+  storage/       encrypted, tenant-bound blob store
+  ingestion/     file inspection, ClamAV, classifier, email/S3/webhook channels, gateway
+  extraction/    OCR engines, LLM schema view, grounding-based confidence, pipeline
+  rules/         deterministic rule engine, semantic matcher, validation runner
+  regulatory/    sanctions screening, tariff + import rule packs, circuit breaker
+  agents/        Claude client wrapper, remediation drafter
+  dispatch/      outbox dispatcher (email/customs), filing payload builder
+  orchestration/ ledger-tailing orchestrator
+  api/           FastAPI app, OIDC auth, middleware, read models, co-signing, demo
+  platform.py    composition root;  worker.py  background worker
+frontend/        React + TypeScript dashboard (Vite)
+db/migrations/   tenant provisioning, append-only ledger enforced in SQL
 ```
 
-## Running the tests
+## Tests
 
 ```bash
-cd backend
-pip install -e ".[dev]"
-pytest
+cd backend && pytest                       # 91 tests: unit, pipeline, API, end-to-end
+SENTINEL_TEST_DSN=postgresql://... pytest  # + 5 Postgres integration tests
 ```
-
-The Postgres integration tests run when `SENTINEL_TEST_DSN` is set:
-
-```bash
-SENTINEL_TEST_DSN="postgresql://postgres:pw@localhost:5432/postgres" pytest
-```
-
-## Roadmap
-
-| # | Module | Status |
-|---|--------|--------|
-| 1 | Shipment schemas, signed event ledger, state machine, tenant-isolated DB | ✅ |
-| 2 | Ingestion gateway (email/S3/port APIs, quarantine, malware scan) | ⏳ |
-| 3 | Hybrid OCR + schema-bound LLM extraction, confidence calibration | ⏳ |
-| 4 | Deterministic rule engine (weights, totals, counts, container/HS cross-checks) | ⏳ |
-| 5 | Regulatory adapters (tariff, sanctions, import rules) with circuit breakers | ⏳ |
-| 6 | Remediation drafter agent + outbox dispatcher (email/ERP/customs) | ⏳ |
-| 7 | HITL dashboard: decision tree, side-by-side diff, single-click approval | ⏳ |
-| 8 | FastAPI gateway: OIDC, mTLS, rate limiting | ⏳ |

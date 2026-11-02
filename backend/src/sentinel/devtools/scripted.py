@@ -25,7 +25,8 @@ def extraction_responder(responses: list[dict]):
     def respond(user: str) -> dict:
         def score(r):
             ev = _evidences(r)
-            return sum(e in user for e in ev) / max(1, len(ev))
+            doc_no = r.get("document_number", {}).get("evidence", "")
+            return (2 if doc_no and doc_no in user else 0) + sum(e in user for e in ev) / max(1, len(ev))
 
         return max(responses, key=score)
 

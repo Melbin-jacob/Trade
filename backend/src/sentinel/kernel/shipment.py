@@ -174,7 +174,8 @@ class ShipmentAggregate:
                     "kind": "low_confidence",
                     "rule_id": "CONFIDENCE_THRESHOLD",
                     "severity": "warning",
-                    "message": f"{doc_type.value} field {path} below confidence threshold",
+                    "message": f"{doc_type.value.replace('_', ' ').capitalize()}: {path} read below the "
+                               f"98% confidence threshold - confirm the value against the original",
                 }
         return out
 

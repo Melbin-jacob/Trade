@@ -16,7 +16,8 @@ services:
     image: postgres:16.4
     environment:
       POSTGRES_USER: sentinel_owner
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      # No default: Postgres refuses to start without it, so the full stack fails closed.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
       POSTGRES_DB: sentinel
     volumes:
       - ./db/migrations:/docker-entrypoint-initdb.d:ro
@@ -30,7 +31,9 @@ services:
   api:
     profiles: ["full"]
     build: .
-    env_file: [.env]          # see docs/deployment.md for every variable
+    env_file:                 # see docs/deployment.md for every variable
+      - path: .env
+        required: false
     depends_on: [postgres, clamav]
     volumes: [clamsock:/run/clamav, blobs:/data/blobs, sanctions:/data/sanctions, customs:/data/customs-outbox]
     ports: ["127.0.0.1:8000:8000"]
@@ -39,7 +42,9 @@ services:
     profiles: ["full"]
     build: .
     command: ["python", "-m", "sentinel.worker"]
-    env_file: [.env]
+    env_file:
+      - path: .env
+        required: false
     depends_on: [postgres, clamav]
     volumes: [clamsock:/run/clamav, blobs:/data/blobs, sanctions:/data/sanctions, customs:/data/customs-outbox]
 

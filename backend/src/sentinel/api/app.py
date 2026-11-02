@@ -77,7 +77,7 @@ def mount_frontend(app: FastAPI, dist: str | None = None) -> None:
 
 
 def create_app(platform: Platform, settings: Settings, verifier: TokenVerifier | None = None,
-               run_pipeline_inline: bool = True) -> FastAPI:
+               run_pipeline_inline: bool = True, demo_access_code_required: bool = False) -> FastAPI:
     settings.validate()
     verifier = verifier or TokenVerifier(settings)
     cosign = CosignBook(platform.audit)
@@ -150,7 +150,7 @@ def create_app(platform: Platform, settings: Settings, verifier: TokenVerifier |
     def public_config() -> dict[str, Any]:
         """Non-secret settings the SPA needs to start its OIDC (authorization code + PKCE) login."""
         if settings.is_dev:
-            return {"auth": "dev"}
+            return {"auth": "dev", "access_code_required": demo_access_code_required}
         return {"auth": "oidc", "issuer": settings.oidc_issuer, "client_id": settings.oidc_client_id,
                 "audience": settings.oidc_audience}
 

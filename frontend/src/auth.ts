@@ -58,8 +58,8 @@ export async function completeOidcLogin(issuer: string, clientId: string): Promi
   return true;
 }
 
-export async function devLogin(user: string): Promise<string> {
-  const r = await api.devToken(user);
+export async function devLogin(user: string, accessCode = ""): Promise<string> {
+  const r = await api.devToken(user, accessCode);
   session.set(r.token);
   sessionStorage.setItem("sentinel.name", r.name);
   return r.name;

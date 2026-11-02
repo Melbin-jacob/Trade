@@ -36,6 +36,24 @@ The demo uses a scripted stand-in for Claude, so it needs no API key. To use
 real Claude extraction and drafting, set `SENTINEL_DEMO_USE_CLAUDE=1` and
 provide Anthropic credentials.
 
+## Deploy as a web app (Render)
+
+The repo includes a Render Blueprint (`render.yaml`) that builds the Dockerfile and
+serves the dashboard and API from one HTTPS URL.
+
+1. Sign in at https://render.com with GitHub and give Render access to this repository.
+2. Choose **New → Blueprint**, pick this repository, and click **Apply**. Render reads
+   `render.yaml`, builds the image (about 5–10 minutes the first time) and gives you a
+   `https://trade-lane-sentinel-xxxx.onrender.com` URL.
+3. Open the service's **Environment** tab, copy `SENTINEL_DEMO_ACCESS_CODE`, and share
+   it only with people who should get in. The login page asks for it.
+
+This runs the **seeded demo**: an in-memory ledger with fictitious data, which resets
+whenever the service restarts. Free instances also sleep after about 15 idle minutes;
+the first visit afterwards takes about a minute to wake up. Production mode (Postgres,
+your identity provider, ClamAV, SMTP, KMS keys) is described in
+[docs/deployment.md](docs/deployment.md).
+
 ## Architecture
 
 ```

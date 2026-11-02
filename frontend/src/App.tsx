@@ -19,6 +19,7 @@ function Login({ onDone }: { onDone: () => void }) {
   const [cfg, setCfg] = useState<Awaited<ReturnType<typeof api.config>> | null>(null);
   const [users, setUsers] = useState<{ id: string; name: string; roles: string[] }[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [code, setCode] = useState("");
   useEffect(() => {
     api.config().then(async (c) => {
       setCfg(c);
@@ -39,8 +40,14 @@ function Login({ onDone }: { onDone: () => void }) {
         {cfg?.auth === "dev" && (
           <>
             <div className="notice info">Demo environment — choose a persona. Production sign-in uses your identity provider with MFA.</div>
+            {cfg.access_code_required && (
+              <label className="field" style={{ marginBottom: 14 }}>Access code
+                <input type="text" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)}
+                       placeholder="Provided by your administrator" /></label>
+            )}
             {users.map((u) => (
-              <button key={u.id} className="user-option" onClick={() => devLogin(u.id).then(onDone).catch((e: Error) => setErr(e.message))}>
+              <button key={u.id} className="user-option" disabled={!!cfg.access_code_required && !code}
+                      onClick={() => devLogin(u.id, code.trim()).then(onDone).catch((e: Error) => setErr(e.message))}>
                 <span className="avatar">{u.name.split(" ").map((p) => p[0]).join("")}</span>
                 <span><b>{u.name}</b><div className="muted">{u.roles.join(", ").replace(/_/g, " ")}</div></span>
               </button>

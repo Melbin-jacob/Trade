@@ -1,0 +1,26 @@
+# Render Blueprint - https://render.com/docs/blueprint-spec
+# Deploys the dashboard + API as one Docker web service running the seeded demo
+# (in-memory ledger, fictitious data). Access is gated by a generated access code.
+services:
+  - type: web
+    name: trade-lane-sentinel
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: feat/core-kernel
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: SENTINEL_ENV
+        value: dev
+      - key: SENTINEL_DEMO_ACCESS_CODE
+        generateValue: true        # find it under Environment in the Render dashboard
+      - key: SENTINEL_DEV_JWT_SECRET
+        generateValue: true
+      # Optional: real Claude extraction/drafting instead of the scripted stand-in.
+      - key: SENTINEL_DEMO_USE_CLAUDE
+        value: "0"
+      - key: ANTHROPIC_API_KEY
+        sync: false

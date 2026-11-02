@@ -7,13 +7,14 @@ shipments that exercise every review path. Never use in production.
 
 from __future__ import annotations
 
+import hmac
 import os
 import secrets
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import HTTPException
+from fastapi import Header, HTTPException
 from pydantic import BaseModel
 
 from sentinel.agents.claude import ClaudeJsonLlm
@@ -145,6 +146,12 @@ def build_demo_platform() -> tuple[Platform, dict]:
 
 class TokenRequest(BaseModel):
     user: str
+    access_code: str = ""
+
+
+def _access_code() -> str:
+    """Optional shared code gating the demo login on public deployments."""
+    return os.environ.get("SENTINEL_DEMO_ACCESS_CODE", "")
 
 
 def create_demo_app():
@@ -152,7 +159,7 @@ def create_demo_app():
     settings = Settings(env="dev", dev_jwt_secret=os.environ["SENTINEL_DEV_JWT_SECRET"],
                         cors_origins=["http://localhost:5173"], rate_limit_per_minute=600)
     platform, extras = build_demo_platform()
-    app = create_app(platform, settings)
+    app = create_app(platform, settings, demo_access_code_required=bool(_access_code()))
     app.state.demo = extras
 
     @app.get("/api/v1/dev/users")
@@ -161,13 +168,21 @@ def create_demo_app():
 
     @app.post("/api/v1/dev/token")
     def dev_token(body: TokenRequest):
+        code = _access_code()
+        if code and not hmac.compare_digest(body.access_code.encode(), code.encode()):
+            raise HTTPException(401, "invalid access code")
         if body.user not in USERS:
             raise HTTPException(404, "unknown demo user")
         name, roles = USERS[body.user]
         return {"token": issue_dev_token(settings, body.user, TENANT, roles, name), "name": name, "roles": roles}
 
     @app.get("/api/v1/dev/outbox")
-    def dev_outbox():
+    def dev_outbox(authorization: str | None = Header(default=None)):
+        from sentinel.api.auth import AuthError, TokenVerifier
+        try:
+            TokenVerifier(settings).principal(authorization)
+        except AuthError:
+            raise HTTPException(401, "sign in first") from None
         return {"emails": extras["email"].sent,
                 "customs": [{**s, "payload": s["payload"].decode()} for s in extras["customs"].submissions]}
 

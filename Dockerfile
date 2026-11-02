@@ -19,7 +19,9 @@ RUN pip install "./backend[postgres]"
 COPY --from=frontend /app/dist /srv/frontend
 COPY db /srv/db
 USER sentinel
+ENV PORT=8000
 EXPOSE 8000
-HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"
-# TLS 1.3 terminates at the ingress; uvicorn trusts forwarded headers only from it.
-CMD ["uvicorn", "sentinel.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "10.0.0.0/8"]
+HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"PORT\"]}/healthz')"
+# TLS 1.3 terminates at the ingress / platform load balancer; uvicorn sits behind it.
+# PORT is set by hosting platforms such as Render; defaults to 8000.
+CMD ["sh", "-c", "exec uvicorn sentinel.api.main:app --host 0.0.0.0 --port \"$PORT\" --proxy-headers --forwarded-allow-ips '*'"]

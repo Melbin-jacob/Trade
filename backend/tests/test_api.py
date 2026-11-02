@@ -91,7 +91,7 @@ def test_approve_then_upload_correction_reaches_ready(client):
     r = client.post(f"/api/v1/shipments/SHP-2026-000123/proposals/{p['proposal_id']}/approve",
                     json={"draft_sha256": p["draft_sha256"]}, headers=h)
     assert r.status_code == 200 and r.json()["state"] == "awaiting_correction"
-    outbox = client.get("/api/v1/dev/outbox").json()
+    outbox = client.get("/api/v1/dev/outbox", headers=auth(client, "kim.auditor")).json()
     assert outbox["emails"][0]["to"] == ["export@fazendaboavista.example"]
 
     pdf = client.get("/api/v1/dev/sample/corrected-packing-list").content
@@ -120,7 +120,7 @@ def test_filing_and_ledger_verification(client):
     r = client.post("/api/v1/shipments/SHP-2026-000124/filing",
                     json={"customs_system": "CBSA-CARM", "reviewed_docset_hash": s["docset_hash"]}, headers=sam)
     assert r.status_code == 200 and r.json()["payload"]["containers"] == ["TGHU1234567"]
-    assert client.get("/api/v1/dev/outbox").json()["customs"]
+    assert client.get("/api/v1/dev/outbox", headers=auth(client, "kim.auditor")).json()["customs"]
     v = client.get("/api/v1/ledger/verify", headers=auth(client, "kim.auditor")).json()
     assert v["ok"] and v["entries_checked"] > 50
     assert client.get("/api/v1/ledger/verify", headers=auth(client, "alex.lee")).status_code == 403
@@ -141,3 +141,16 @@ def test_production_settings_validation(monkeypatch):
         Settings(env="production", dev_jwt_secret="x" * 40, oidc_issuer="https://idp", oidc_jwks_url="https://idp/jwks").validate()
     Settings(env="production", dev_jwt_secret="", oidc_issuer="https://idp.example",
              oidc_jwks_url="https://idp.example/jwks").validate()
+
+
+def test_demo_access_code_gate(monkeypatch):
+    monkeypatch.setenv("SENTINEL_DEV_JWT_SECRET", SECRET)
+    monkeypatch.setenv("SENTINEL_DEMO_ACCESS_CODE", "correct-horse-battery")
+    monkeypatch.setenv("SENTINEL_FRONTEND_DIST", "/nonexistent")
+    with TestClient(create_demo_app(), base_url="https://testserver") as c:
+        assert c.get("/api/v1/config").json()["access_code_required"] is True
+        assert c.post("/api/v1/dev/token", json={"user": "alex.lee"}).status_code == 401
+        assert c.post("/api/v1/dev/token", json={"user": "alex.lee", "access_code": "nope"}).status_code == 401
+        r = c.post("/api/v1/dev/token", json={"user": "alex.lee", "access_code": "correct-horse-battery"})
+        assert r.status_code == 200
+        assert c.get("/api/v1/dev/outbox").status_code == 401

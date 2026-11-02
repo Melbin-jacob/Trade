@@ -95,9 +95,10 @@ async function request<T>(method: string, path: string, body?: unknown, raw = fa
 
 const sid = (id: string) => encodeURIComponent(id);
 export const api = {
-  config: () => request<{ auth: "dev" | "oidc"; issuer?: string; client_id?: string; audience?: string }>("GET", "/api/v1/config"),
+  config: () => request<{ auth: "dev" | "oidc"; access_code_required?: boolean; issuer?: string; client_id?: string; audience?: string }>("GET", "/api/v1/config"),
   devUsers: () => request<{ id: string; name: string; roles: string[] }[]>("GET", "/api/v1/dev/users"),
-  devToken: (user: string) => request<{ token: string; name: string }>("POST", "/api/v1/dev/token", { user }),
+  devToken: (user: string, access_code = "") =>
+    request<{ token: string; name: string }>("POST", "/api/v1/dev/token", { user, access_code }),
   me: () => request<Me>("GET", "/api/v1/me"),
   dashboard: () => request<Dashboard>("GET", "/api/v1/dashboard"),
   shipments: () => request<Summary[]>("GET", "/api/v1/shipments"),
